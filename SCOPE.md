@@ -89,11 +89,12 @@ Tracked as ordered phases. Don't skip ahead — each phase depends on the previo
 
 **Phase 0 verification (already passing):** `uv run pytest -q` → 3 passed. sv2v + Yosys end-to-end on `digital-lib/opt_pipe` produces a valid JSON netlist.
 
-### Phase 1 — Yosys round-trip (1–2 days)
-- [ ] Write `and2.v` (two-input AND, nothing else).
-- [ ] Run `yosys -p "read_verilog and2.v; synth; write_json and2.json"` by hand. **Read the JSON.** Spend an hour understanding `modules → cells → connections`. This is the most important hour of the project.
-- [ ] Write `frontend.py` that shells out to Yosys and returns parsed JSON.
-- [ ] Repeat for `full_adder.v` to see what multi-gate netlists look like.
+### Phase 1 — Yosys round-trip (1–2 days) ✅
+- [x] Write `and2.v` — at `tests/handwritten/and2.v`.
+- [x] Run Yosys by hand on `and2.v`; document JSON shape — captured in the `frontend.py` module docstring (modules → ports/cells/netnames; bit IDs 0/1 are constants).
+- [x] Write `frontend.py` — `synthesize_to_json` (sv2v + Yosys) and `json_to_ir` (JSON → `ir.Module`).
+- [x] Repeat for `full_adder.v` — Yosys lowers it to 3× `$_NAND_` + 2× `$_XOR_`; the IR captures all 5 cells and their net connectivity.
+- [x] **Bonus:** the same `synthesize()` call works on `digital-lib/opt_pipe/src/opt_pipe.sv` (T1 ground-truth SV with sv2v in the loop).
 
 ### Phase 2 — IR (2 days)
 - [ ] Define `Cell`, `Net`, `Module` dataclasses in `ir.py`. Leave `position`/`route` fields as `None` initially — later stages fill them in.
