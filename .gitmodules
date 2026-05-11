@@ -1,0 +1,3 @@
+[submodule "tests/golden/digital-lib"]
+	path = tests/golden/digital-lib
+	url = https://github.com/Purdue-SoCET/digital-lib.git
