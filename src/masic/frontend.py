@@ -29,11 +29,21 @@ class FrontendError(RuntimeError):
     pass
 
 
-def synthesize_to_json(src: Path, top: str | None = None) -> dict:
-    """Run (sv2v →) Yosys on `src`; return the parsed JSON netlist."""
+def synthesize_to_json(
+    src: Path, top: str | None = None, params: dict[str, int] | None = None
+) -> dict:
+    """Run (sv2v →) Yosys on `src`; return the parsed JSON netlist.
+
+    `params` overrides module parameters via Yosys's `chparam` so a
+    parameterized module like `opt_pipe(WIDTH=..., NUM_STAGES=...)` synthesizes
+    to a concrete configuration rather than its (potentially degenerate)
+    defaults.
+    """
     src = Path(src)
     if not src.exists():
         raise FileNotFoundError(src)
+    if params and top is None:
+        raise FrontendError("params require an explicit top module")
 
     with tempfile.TemporaryDirectory() as td:
         td_path = Path(td)
@@ -45,9 +55,13 @@ def synthesize_to_json(src: Path, top: str | None = None) -> dict:
             verilog.write_bytes(src.read_bytes())
 
         out_json = td_path / "out.json"
-        top_arg = f" -top {top}" if top else ""
-        script = f"read_verilog {verilog}; synth{top_arg}; write_json {out_json}"
-        _run(["yosys", "-q", "-p", script])
+        steps = [f"read_verilog {verilog}"]
+        if params:
+            sets = " ".join(f"-set {k} {v}" for k, v in params.items())
+            steps.append(f"chparam {sets} {top}")
+        steps.append(f"synth{f' -top {top}' if top else ''}")
+        steps.append(f"write_json {out_json}")
+        _run(["yosys", "-q", "-p", "; ".join(steps)])
 
         return json.loads(out_json.read_text())
 
@@ -133,6 +147,8 @@ def _run(cmd: list[str], stdout: Path | None = None) -> None:
         raise FrontendError(f"{cmd[0]} failed: {result.stderr.decode(errors='replace')[-500:]}")
 
 
-def synthesize(src: Path, top: str | None = None) -> Module:
+def synthesize(
+    src: Path, top: str | None = None, params: dict[str, int] | None = None
+) -> Module:
     """Convenience: synthesize + parse in one call."""
-    return json_to_ir(synthesize_to_json(src, top=top), top=top)
+    return json_to_ir(synthesize_to_json(src, top=top, params=params), top=top)

@@ -96,12 +96,13 @@ Tracked as ordered phases. Don't skip ahead — each phase depends on the previo
 - [x] Repeat for `full_adder.v` — Yosys lowers it to 3× `$_NAND_` + 2× `$_XOR_`; the IR captures all 5 cells and their net connectivity.
 - [x] **Bonus:** the same `synthesize()` call works on `digital-lib/opt_pipe/src/opt_pipe.sv` (T1 ground-truth SV with sv2v in the loop).
 
-### Phase 2 — IR (2 days)
-- [ ] Define `Cell`, `Net`, `Module` dataclasses in `ir.py`. Leave `position`/`route` fields as `None` initially — later stages fill them in.
-- [ ] Write `netlist_to_ir.py`: Yosys JSON → IR.
-- [ ] Write unit tests on `and2`, `full_adder`.
-- [ ] Add the `digital-lib` corpus as a git submodule (or symlink) under `tests/golden/digital-lib/`. Wire pytest to discover each module's `<module>/src/*.sv` + `<module>/tb/` testbench.
-- [ ] Smoke-test: feed `opt_pipe/src/opt_pipe.sv` and `synchronizer/src/socetlib_synchronizer.sv` through sv2v + Yosys end-to-end. Confirm both produce valid JSON netlists. (Skip placer/router for now — this just validates the frontend on real-world SV.)
+### Phase 2 — IR (2 days) ✅
+- [x] Define `Cell`, `Net`, `Module` dataclasses in `ir.py` — `position`/`route`/`orientation` start `None`.
+- [x] Write JSON → IR conversion — folded into `frontend.json_to_ir` (one module, one contract).
+- [x] Unit tests on `and2`, `full_adder` — passing (5 tests).
+- [x] Add `digital-lib` as a submodule at `tests/golden/digital-lib/` — already on main.
+- [x] **Parametrized corpus walk** — every T1–T3 module (opt_pipe, synchronizer, edge_detector, shift_register, counter, stack, fifo) synthesizes through sv2v + Yosys + IR with a concrete parameter set (`tests/test_corpus.py`).
+- [x] Frontend gained `params=` overrides — Yosys's `chparam` is wired in so degenerate-default modules (opt_pipe with `NUM_STAGES=0`) can be synthesized at a real configuration.
 
 ### Phase 3 — Cell library (3–5 days, hands-on in Minecraft)
 - [ ] In creative mode, build the smallest known-good NAND, NOT, AND, OR, DFF. Take screenshots. Record dimensions and exact input/output coordinates.
