@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from . import cell_library, emit, frontend, place, tech_map
+from . import cell_library, emit, frontend, place, route, tech_map
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -52,6 +52,11 @@ def _run_synth(args: argparse.Namespace) -> int:
     )
     tech_map.tech_map(module, library)
     place.place(module, library)
+    collisions = route.detect_collisions(module, library)
+    if collisions:
+        print(f"WARNING: {len(collisions)} dust coords are routed by multiple nets "
+              f"(the naive single-layer router will short these together). "
+              f"The output schematic will be emitted anyway, but expect wrong behavior.")
     emit.emit_litematic(module, library, Path(args.output))
     print(f"wrote {args.output} ({len(module.cells)} cells)")
     return 0

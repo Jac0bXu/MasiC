@@ -119,11 +119,13 @@ Tracked as ordered phases. Don't skip ahead — each phase depends on the previo
 - [x] `emit.py` — stamps each placed cell's `.litematic` into a master schematic (skips air).
 - [x] `masic synth tests/handwritten/and2.v --top and2 -o and2.litematic` produces a loadable schematic with the AND2 cell + its built-in levers/lamp. **Test in-world.**
 
-**Phase 4b — multi-cell routing (next)**
-- [ ] Strip each cell's built-in input levers/output lamps when stamping into a multi-cell design, and wire external module ports.
-- [ ] Dust trail router: driver → load, with repeater every ≤14 blocks. Routing on a separate y-layer above cells (cells at y=0..H-1, routing at y=H+gap+).
-- [ ] Wire-over-wire crossings by bumping up another layer.
-- [ ] First multi-cell milestone: `full_adder.v` end-to-end (7 cells: 2 AND + 3 NAND + 2 OR).
+**Phase 4b — multi-cell routing (partial)**
+- [x] Strip lever/lamp at internal cell ports during stamping; auto-replace with dust + floor.
+- [x] External I/O: levers at module input ports (west edge), lamps at module output ports (east edge).
+- [x] Single-row placer (`strategy="row"`) and L-shaped Manhattan dust router with repeaters every 14 blocks.
+- [x] `route.detect_collisions()` — flags coords where the naive router would short two nets, surfaced as a CLI warning.
+- [ ] **Wire-over-wire crossings on a higher y-layer.** Required for non-trivial designs. Without it `full_adder` routes 60 dust coords with multi-net collisions.
+- [ ] **Stripped-cell semantics validation in-world.** The lever-to-dust replacement should still drive each cell's logic via weak power; needs a real Minecraft test to confirm. `and2` is the canary.
 
 ### Phase 5 — Verification harness (3–4 days)
 - [ ] Learn MCHPRS's RPC/command interface for setting inputs and reading outputs.

@@ -74,6 +74,8 @@ def test_emit_and2_produces_loadable_litematic(library, tmp_path):
                  for y in region.range_y()
                  for z in region.range_z()}
     block_ids.discard("minecraft:air")
-    # The single AND cell's hand-built fixture has levers (inputs) and a lamp (output).
+    # The emitter strips the AND cell's internal lever/lamp fixtures and adds
+    # external module-port levers (inputs) + a lamp (output) connected by dust.
     assert "minecraft:lever" in block_ids
     assert "minecraft:redstone_lamp" in block_ids
+    assert "minecraft:redstone_wire" in block_ids

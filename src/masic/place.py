@@ -22,13 +22,15 @@ def place(
     module: Module,
     library: dict[str, CellSpec],
     *,
+    strategy: str = "row",
     routing_gap: int = 3,
+    z_margin: int = 2,
 ) -> Module:
     """Assign positions to every cell in `module`. Mutates and returns it.
 
-    Cells are laid out on a roughly square grid in the XZ plane. Each grid
-    slot is wide enough to hold the largest cell in the library plus
-    `routing_gap` blocks of space on every side for routing.
+    strategy="grid": square grid in the XZ plane. Each slot fits the biggest cell + routing_gap.
+    strategy="row":  one cell per column along +x, all sharing z=z_margin. Simpler for the
+                    naive router which only does L-shaped paths at a single y-level.
     """
     if not module.cells:
         return module
@@ -37,15 +39,20 @@ def place(
     if len(specs) != len(module.cells):
         raise PlacementError("place() requires every cell to be tech-mapped first")
 
-    slot_w = max(s.footprint[0] for s in specs) + routing_gap
-    slot_d = max(s.footprint[2] for s in specs) + routing_gap
-
-    n = len(module.cells)
-    cols = max(1, math.ceil(math.sqrt(n)))
-
-    for i, cell in enumerate(module.cells.values()):
-        col, row = i % cols, i // cols
-        cell.position = (col * slot_w, 0, row * slot_d)
+    if strategy == "grid":
+        slot_w = max(s.footprint[0] for s in specs) + routing_gap
+        slot_d = max(s.footprint[2] for s in specs) + routing_gap
+        cols = max(1, math.ceil(math.sqrt(len(module.cells))))
+        for i, cell in enumerate(module.cells.values()):
+            col, row = i % cols, i // cols
+            cell.position = (col * slot_w, 0, row * slot_d)
+    elif strategy == "row":
+        x = routing_gap
+        for cell, spec in zip(module.cells.values(), specs, strict=False):
+            cell.position = (x, 0, z_margin)
+            x += spec.footprint[0] + routing_gap
+    else:
+        raise PlacementError(f"unknown placement strategy {strategy!r}")
 
     return module
 
