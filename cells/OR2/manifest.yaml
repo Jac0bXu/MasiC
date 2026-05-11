@@ -1,13 +1,14 @@
 name: OR2
 yosys_types: ["$_OR_"]
 family: combinational
-footprint: [3, 1, 5]
+# Schematic spans y=-1..0; the manifest is normalized so y=0 is the floor.
+footprint: [5, 2, 2]
 ports:
   inputs:
-    A: {coord: [0, 0, 0], kind: lever}
-    B: {coord: [0, 0, 4], kind: lever}
+    A: {coord: [0, 1, 0], kind: lever}
+    B: {coord: [0, 1, 1], kind: lever}
   outputs:
-    Y: {coord: [2, 0, 2], kind: lamp}
+    Y: {coord: [4, 1, 0], kind: lamp}
 delay_ticks: 1
 truth_table:
   - {A: 0, B: 0, Y: 0}

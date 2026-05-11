@@ -1,12 +1,15 @@
 name: DFF
-yosys_types: ["$_DFF_P_", "$_DFF_PP0_"]
+yosys_types: ["$_DFF_P_"]
 family: sequential
-footprint: [5, 2, 7]
+# Master-slave D flip-flop, rising-edge (Modern Design H from the
+# Minecraft wiki: 2 G-latches back-to-back, 4 repeaters + 1 torch).
+# Async reset is not modeled — $_DFF_PP0_ will need a separate DFF_R cell.
+# Schematic spans z=-3..0; the manifest is normalized so z=0 is the lever face.
+footprint: [6, 1, 4]
 ports:
   inputs:
-    D:   {coord: [0, 0, 0], kind: lever}
-    CLK: {coord: [0, 0, 6], kind: lever}
+    D:   {coord: [0, 0, 3], kind: lever}
+    CLK: {coord: [0, 0, 2], kind: button}
   outputs:
-    Q:   {coord: [4, 0, 3], kind: lamp}
+    Q:   {coord: [5, 0, 0], kind: lamp}
 delay_ticks: 4
-# Sequential cells skip truth_table. Verify by hand or via MCHPRS RIL once wired.
