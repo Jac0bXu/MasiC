@@ -1,0 +1,93 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Package managers
+.uv/
+poetry.lock
+uv.lock
+
+# Testing / coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+
+# Editors / OS
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Yosys / synthesis intermediates
+*.json.tmp
+*.blif
+*.ys
+yosys.log
+*.smt2
+
+# Generated schematics & build artifacts (regeneratable from SV sources)
+out/
+build_out/
+generated/
+*.litematic
+*.schem
+*.schematic
+*.nbt
+
+# But DO keep hand-built cell-library schematics under cells/
+!cells/**/*.litematic
+!cells/**/*.nbt
+
+# MCHPRS world data / runtime state
+mchprs_world/
+schems/
+plots/
+*.region
+*.mca
+
+# Logs
+*.log
+logs/
+
+# Claude Code: ignore per-machine state and worktrees, but keep shared config
+# (CLAUDE.md, agents, settings.json) tracked at the repo root.
+.claude/worktrees/
+.claude/local/
+.claude/cache/
+.claude/logs/
+.claude/settings.local.json
