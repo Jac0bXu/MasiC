@@ -83,7 +83,7 @@ Tracked as ordered phases. Don't skip ahead — each phase depends on the previo
 - [x] Install `sv2v` (verify `sv2v --version`) — sv2v 0.0.13 via brew.
 - [x] Initialize Python project — `pyproject.toml` with hatchling backend, src layout.
 - [x] Add deps: `litemapy`, `pyyaml`, `pytest`, `ruff`, `mypy` (via `uv sync --extra dev`).
-- [ ] **Install Minecraft Java 1.20.1 + Fabric + Litematica mod** — manual, see [SETUP.md](SETUP.md). Can't be scripted (GUI + login).
+- [x] **Install Minecraft Java 1.20.1 + Fabric + Litematica mod** — manual, see [SETUP.md](SETUP.md). Verified: flat creative world loads and a placed redstone torch lights up.
 - [x] Clone & build MCHPRS — `tools/MCHPRS/target/release/mchprs` (11 MB, built via Tsinghua crates.io mirror after the default crates.io route timed out).
 - [x] Sketch repo layout — `src/masic/{ir,frontend,cell_library,tech_map,place,route,emit,cosim,cli}.py` + `tests/test_smoke.py` + `cells/` + `docs/`. Smoke tests pass.
 
