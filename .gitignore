@@ -84,6 +84,9 @@ plots/
 *.log
 logs/
 
+# Vendored external tools (cloned via setup, not committed)
+tools/
+
 # Claude Code: ignore per-machine state and worktrees, but keep shared config
 # (CLAUDE.md, agents, settings.json) tracked at the repo root.
 .claude/worktrees/

@@ -77,7 +77,7 @@ Prior art to study (do not fork — the codebases are small and reimplementing t
 - MinecraftHDL (https://github.com/itsfrank/MinecraftHDL) — closest existing reference.
 - V2MC (https://github.com/Kenny2github/V2MC) — uses pyosys, emits `.nbt`.
 - MCV (https://github.com/EngineersBox/MCV), mineroute (https://github.com/Gl237man/mineroute).
-- MCHPRS (https://github.com/MCHPRS/MCHPRS) — the simulation backend.
+- MCHPRS (https://github.com/MCHPR/MCHPRS) — the simulation backend (note: org is `MCHPR`, repo is `MCHPRS`).
 
 ## Novel contributions on the table
 

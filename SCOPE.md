@@ -78,14 +78,16 @@ These are the components that must all exist for the final deliverable. Each is 
 
 Tracked as ordered phases. Don't skip ahead — each phase depends on the previous one being solid.
 
-### Phase 0 — Bootstrap (1 day)
-- [ ] Install `yosys` (verify `yosys -V`).
-- [ ] Install `sv2v` (verify `sv2v --version`).
-- [ ] Initialize Python project (`uv init` or `poetry new`, Python 3.11+).
-- [ ] Add deps: `litemapy`, `pytest`, dataclasses (stdlib).
-- [ ] Install Minecraft Java 1.20.1 + Fabric + Litematica mod.
-- [ ] Clone & build MCHPRS locally; confirm it runs.
-- [ ] Sketch the repo layout: `src/masic/{ir,frontend,tech_map,place,route,emit,cosim,cli}.py` + `tests/` + `cells/` (cell library data).
+### Phase 0 — Bootstrap (1 day) ✅
+- [x] Install `yosys` (verify `yosys -V`) — Yosys 0.64 via brew.
+- [x] Install `sv2v` (verify `sv2v --version`) — sv2v 0.0.13 via brew.
+- [x] Initialize Python project — `pyproject.toml` with hatchling backend, src layout.
+- [x] Add deps: `litemapy`, `pyyaml`, `pytest`, `ruff`, `mypy` (via `uv sync --extra dev`).
+- [ ] **Install Minecraft Java 1.20.1 + Fabric + Litematica mod** — manual, see [SETUP.md](SETUP.md). Can't be scripted (GUI + login).
+- [x] Clone MCHPRS locally — at `tools/MCHPRS/`, building.
+- [x] Sketch repo layout — `src/masic/{ir,frontend,cell_library,tech_map,place,route,emit,cosim,cli}.py` + `tests/test_smoke.py` + `cells/` + `docs/`. Smoke tests pass.
+
+**Phase 0 verification (already passing):** `uv run pytest -q` → 3 passed. sv2v + Yosys end-to-end on `digital-lib/opt_pipe` produces a valid JSON netlist.
 
 ### Phase 1 — Yosys round-trip (1–2 days)
 - [ ] Write `and2.v` (two-input AND, nothing else).
