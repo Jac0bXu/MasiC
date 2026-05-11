@@ -1,0 +1,12 @@
+name: DFF
+yosys_types: ["$_DFF_P_", "$_DFF_PP0_"]
+family: sequential
+footprint: [5, 2, 7]
+ports:
+  inputs:
+    D:   {coord: [0, 0, 0], kind: lever}
+    CLK: {coord: [0, 0, 6], kind: lever}
+  outputs:
+    Q:   {coord: [4, 0, 3], kind: lamp}
+delay_ticks: 4
+# Sequential cells skip truth_table. Verify by hand or via MCHPRS RIL once wired.

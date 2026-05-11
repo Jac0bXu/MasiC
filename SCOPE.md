@@ -105,11 +105,13 @@ Tracked as ordered phases. Don't skip ahead — each phase depends on the previo
 - [x] Frontend gained `params=` overrides — Yosys's `chparam` is wired in so degenerate-default modules (opt_pipe with `NUM_STAGES=0`) can be synthesized at a real configuration.
 
 ### Phase 3 — Cell library (3–5 days, hands-on in Minecraft)
-- [ ] In creative mode, build the smallest known-good NAND, NOT, AND, OR, DFF. Take screenshots. Record dimensions and exact input/output coordinates.
-- [ ] Save each as a `.litematic` in `cells/`.
-- [ ] Write a YAML manifest per cell: footprint (x, y, z), input ports `{name: (x,y,z)}`, output ports, delay in ticks.
-- [ ] Write `cell_library.py` that loads cells + manifests into memory.
-- [ ] For each cell, verify in MCHPRS: drive its declared inputs, confirm declared outputs. **Don't skip this** — a buggy cell silently corrupts every downstream design.
+- [x] `cell_library.py` loader + manifest schema — combinational truth-table validation, port-inside-footprint check, no-duplicate-coord check.
+- [x] Per-cell skeletons committed under `cells/{NOT,NAND2,AND2,OR2,DFF}/` with placeholder manifests and `cells/README.md` build guide.
+- [ ] **In Minecraft creative mode (1.20.1 + Fabric + Litematica), build the five cells** — see `cells/README.md` for the build order, coordinate conventions, and the manifest fields to update. Save each as `cells/<NAME>/cell.litematic`.
+- [ ] **For each cell, update `cells/<NAME>/manifest.yaml`** with the real footprint, port coordinates, and measured `delay_ticks`.
+- [ ] **Verify each cell by hand in the world** (truth table for combinational; D-pulse-Q for DFF). MCHPRS exposes no scripting interface yet, so cosim-style cell verification is deferred to Phase 5 alongside the full pipeline harness.
+
+When all five `manifest.yaml` files have real coords + their `cell.litematic` next to them, `uv run pytest tests/test_cell_library.py` is green and Phase 3 is done.
 
 ### Phase 4 — Naive tech map + placer + router + emit (4–5 days)
 - [ ] Tell Yosys to emit only library primitives: `synth -top X; abc -g NAND; opt`.
