@@ -84,7 +84,7 @@ Tracked as ordered phases. Don't skip ahead — each phase depends on the previo
 - [x] Initialize Python project — `pyproject.toml` with hatchling backend, src layout.
 - [x] Add deps: `litemapy`, `pyyaml`, `pytest`, `ruff`, `mypy` (via `uv sync --extra dev`).
 - [ ] **Install Minecraft Java 1.20.1 + Fabric + Litematica mod** — manual, see [SETUP.md](SETUP.md). Can't be scripted (GUI + login).
-- [x] Clone MCHPRS locally — at `tools/MCHPRS/`, building.
+- [x] Clone & build MCHPRS — `tools/MCHPRS/target/release/mchprs` (11 MB, built via Tsinghua crates.io mirror after the default crates.io route timed out).
 - [x] Sketch repo layout — `src/masic/{ir,frontend,cell_library,tech_map,place,route,emit,cosim,cli}.py` + `tests/test_smoke.py` + `cells/` + `docs/`. Smoke tests pass.
 
 **Phase 0 verification (already passing):** `uv run pytest -q` → 3 passed. sv2v + Yosys end-to-end on `digital-lib/opt_pipe` produces a valid JSON netlist.
