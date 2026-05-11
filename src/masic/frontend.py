@@ -30,7 +30,10 @@ class FrontendError(RuntimeError):
 
 
 def synthesize_to_json(
-    src: Path, top: str | None = None, params: dict[str, int] | None = None
+    src: Path,
+    top: str | None = None,
+    params: dict[str, int] | None = None,
+    gate_set: list[str] | None = None,
 ) -> dict:
     """Run (sv2v →) Yosys on `src`; return the parsed JSON netlist.
 
@@ -38,6 +41,11 @@ def synthesize_to_json(
     parameterized module like `opt_pipe(WIDTH=..., NUM_STAGES=...)` synthesizes
     to a concrete configuration rather than its (potentially degenerate)
     defaults.
+
+    `gate_set` constrains Yosys's ABC pass to a list of valid gate types from
+    `{AND, NAND, OR, NOR, XOR, XNOR, ANDNOT, ORNOT, MUX, NMUX, AOI3/4, OAI3/4}`.
+    NOT is added automatically. Passing the cell library's coverage lets us
+    guarantee every output cell has a redstone implementation.
     """
     src = Path(src)
     if not src.exists():
@@ -60,6 +68,9 @@ def synthesize_to_json(
             sets = " ".join(f"-set {k} {v}" for k, v in params.items())
             steps.append(f"chparam {sets} {top}")
         steps.append(f"synth{f' -top {top}' if top else ''}")
+        if gate_set:
+            steps.append(f"abc -g {','.join(gate_set)}")
+            steps.append("opt_clean")
         steps.append(f"write_json {out_json}")
         _run(["yosys", "-q", "-p", "; ".join(steps)])
 
@@ -148,7 +159,12 @@ def _run(cmd: list[str], stdout: Path | None = None) -> None:
 
 
 def synthesize(
-    src: Path, top: str | None = None, params: dict[str, int] | None = None
+    src: Path,
+    top: str | None = None,
+    params: dict[str, int] | None = None,
+    gate_set: list[str] | None = None,
 ) -> Module:
     """Convenience: synthesize + parse in one call."""
-    return json_to_ir(synthesize_to_json(src, top=top, params=params), top=top)
+    return json_to_ir(
+        synthesize_to_json(src, top=top, params=params, gate_set=gate_set), top=top
+    )

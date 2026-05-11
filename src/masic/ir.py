@@ -21,6 +21,7 @@ class Cell:
     parameters: dict[str, int | str] = field(default_factory=dict)
     position: Coord | None = None
     orientation: str | None = None
+    cell_spec: str | None = None  # set by tech_map; names a CellSpec in the library
 
 
 @dataclass

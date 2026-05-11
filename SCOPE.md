@@ -111,12 +111,19 @@ Tracked as ordered phases. Don't skip ahead — each phase depends on the previo
 - [ ] **Deferred:** DFF with async reset (`$_DFF_PP0_`) — needs its own `DFF_R` cell. Track as a Phase 6+ extension once a corpus module actually fails on the missing reset variant.
 
 ### Phase 4 — Naive tech map + placer + router + emit (4–5 days)
-- [ ] Tell Yosys to emit only library primitives: `synth -top X; abc -g NAND; opt`.
-- [ ] Write `tech_map.py`: walk the IR, replace each generic gate with a library cell instance.
-- [ ] Write a dumb grid placer: `cell.position = (i * pitch, 0, j * pitch)`. Generous spacing.
-- [ ] Write a dumb router: dust trail from driver to load; repeater every ≤14 blocks; use a separate y-layer for routing to avoid collisions; another layer for wire-over-wire crossings.
-- [ ] Write `emit_litematic.py`: stamp each placed cell's `.litematic` at its position, then add routing blocks.
-- [ ] Load the output in Minecraft, click input levers, confirm output lamp behaves correctly. **This is the "hello world" milestone.**
+
+**Phase 4a — single-cell hello world ✅**
+- [x] Yosys gate-set restriction wired (`frontend.synthesize(gate_set=[...])`); ABC is constrained to gates we have cells for.
+- [x] `tech_map.py` — 1:1 mapper using each manifest's `yosys_types` to index Yosys cell types → library cells.
+- [x] `place.py` — grid placer; every cell gets a slot wide enough for the biggest cell plus a routing gap.
+- [x] `emit.py` — stamps each placed cell's `.litematic` into a master schematic (skips air).
+- [x] `masic synth tests/handwritten/and2.v --top and2 -o and2.litematic` produces a loadable schematic with the AND2 cell + its built-in levers/lamp. **Test in-world.**
+
+**Phase 4b — multi-cell routing (next)**
+- [ ] Strip each cell's built-in input levers/output lamps when stamping into a multi-cell design, and wire external module ports.
+- [ ] Dust trail router: driver → load, with repeater every ≤14 blocks. Routing on a separate y-layer above cells (cells at y=0..H-1, routing at y=H+gap+).
+- [ ] Wire-over-wire crossings by bumping up another layer.
+- [ ] First multi-cell milestone: `full_adder.v` end-to-end (7 cells: 2 AND + 3 NAND + 2 OR).
 
 ### Phase 5 — Verification harness (3–4 days)
 - [ ] Learn MCHPRS's RPC/command interface for setting inputs and reading outputs.
