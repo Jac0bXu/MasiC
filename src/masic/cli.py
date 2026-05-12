@@ -57,7 +57,7 @@ def _run_synth(args: argparse.Namespace) -> int:
         print(f"WARNING: {len(collisions)} dust coords are routed by multiple nets "
               f"(the naive single-layer router will short these together). "
               f"The output schematic will be emitted anyway, but expect wrong behavior.")
-    emit.emit_litematic(module, library, Path(args.output))
+    emit.emit(module, library, Path(args.output))
     print(f"wrote {args.output} ({len(module.cells)} cells)")
     return 0
 

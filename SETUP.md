@@ -39,11 +39,18 @@ These can't be scripted: they need your Mojang/Microsoft login and a GUI launche
    - Open the official launcher, "Installations" → "New installation" → select "release 1.20.1" → launch once so the version's assets download.
    - Pin to 1.20.1 even if newer is available. Block-state IDs and comparator edge cases change between versions in undocumented ways; cells built for one version are not guaranteed to port forward.
 2. **Install Fabric Loader for 1.20.1.** Download the installer from <https://fabricmc.net/use/>, run it, target 1.20.1, install.
-3. **Install Litematica + dependencies.** Download these `.jar` files into `~/Library/Application Support/minecraft/mods/`:
+3. **Install WorldEdit + Fabric API.** Drop these `.jar` files into `~/Library/Application Support/minecraft/mods/`:
    - Fabric API (for 1.20.1)
-   - MaLiLib (Litematica's dependency)
-   - Litematica
-4. **First-run smoke test.** Launch the Fabric 1.20.1 profile, create a flat creative world, place a redstone torch. If it lights up, you're done.
+   - WorldEdit (Fabric build for 1.20.1) — <https://modrinth.com/plugin/worldedit>
+4. **First-run smoke test.** Launch the Fabric 1.20.1 profile, create a flat creative world, place a redstone torch — if it lights up, the mod loader is fine. Then in chat run `//pos1`. If WorldEdit responds, you're done.
+
+**Pasting a synthesized circuit:**
+1. Drop the `.schem` file masic produced into `~/Library/Application Support/minecraft/config/worldedit/schematics/`.
+2. In-game, stand where you want the build to start.
+3. `//schem load <name>` (no extension).
+4. `//paste -a` — paste with no air (skips empty blocks; safe for our outputs).
+
+**Litematica is no longer required** — masic writes `.schem` by default and WorldEdit pastes instantly. The five cell `.litematic` files in `cells/` are still used as inputs but never opened in-game.
 
 ## What each tool does in the pipeline
 

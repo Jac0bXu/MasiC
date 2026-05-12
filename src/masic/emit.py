@@ -1,9 +1,15 @@
-"""Schematic emitter: cells + routing + external I/O → one .litematic."""
+"""Schematic emitter: cells + routing + external I/O → one .schem or .litematic.
+
+`.schem` (Sponge Schematic v3) is the default output format because it loads
+directly with WorldEdit's `//schem load && //paste`. `.litematic` is still
+supported for Litematica compatibility — pick by the output filename extension.
+"""
 
 from __future__ import annotations
 
 from pathlib import Path
 
+import mcschematic
 from litemapy import BlockState, Region, Schematic
 
 from .cell_library import CellSpec
@@ -25,7 +31,7 @@ _REPEATER_E = BlockState("minecraft:repeater", facing="east", delay="1")
 _REPEATER_W = BlockState("minecraft:repeater", facing="west", delay="1")
 
 
-def emit_litematic(
+def emit(
     module: Module,
     library: dict[str, CellSpec],
     out_path: Path,
@@ -33,8 +39,15 @@ def emit_litematic(
     name: str | None = None,
     with_routing: bool = True,
 ) -> Path:
-    """Write the full circuit (cells + routes + module I/O) as a .litematic."""
+    """Write the full circuit. Output format = filename extension.
+
+    `.schem`     → Sponge v3, loadable via WorldEdit (`//schem load && //paste`)
+    `.litematic` → Litematica's format
+    """
     out_path = Path(out_path)
+    suffix = out_path.suffix.lower()
+    if suffix not in (".schem", ".litematic"):
+        raise EmitError(f"unsupported output extension {suffix!r}; want .schem or .litematic")
     if not module.cells:
         raise EmitError(f"module {module.name!r} has no cells to emit")
 
@@ -72,9 +85,31 @@ def emit_litematic(
         if rb.kind not in ("lever", "lamp"):
             _apply_route_block(region, rb, (ox, oy, oz), reserved=reserved)
 
-    schematic = region.as_schematic(name=name or module.name)
-    schematic.save(str(out_path))
+    if suffix == ".litematic":
+        schematic = region.as_schematic(name=name or module.name)
+        schematic.save(str(out_path))
+    else:  # .schem
+        _save_as_schem(region, out_path)
     return out_path
+
+
+# Backwards-compatibility alias for callers that still say emit_litematic.
+emit_litematic = emit
+
+
+def _save_as_schem(region: Region, out_path: Path) -> None:
+    """Convert the in-memory litemapy region to a Sponge .schem via mcschematic."""
+    schem = mcschematic.MCSchematic()
+    for x in region.range_x():
+        for y in region.range_y():
+            for z in region.range_z():
+                block = region[x, y, z]
+                if block.id == "minecraft:air":
+                    continue
+                schem.setBlock((x, y, z), repr(block))
+    folder = str(out_path.parent if str(out_path.parent) else ".")
+    stem = out_path.stem
+    schem.save(folder, stem, mcschematic.Version.JE_1_20_1)
 
 
 def _expand_bbox(cell_bbox, route_blocks, ports):

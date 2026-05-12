@@ -58,6 +58,20 @@ def test_place_assigns_positions(library):
     assert len(positions) == len(module.cells)  # no two cells overlap
 
 
+def test_emit_and2_as_schem(library, tmp_path):
+    """The default output format is .schem (WorldEdit-loadable)."""
+    module = frontend.synthesize(FIXTURES / "and2.v", top="and2", gate_set=["AND"])
+    tech_map.tech_map(module, library)
+    from masic import place
+    place.place(module, library)
+
+    out = tmp_path / "and2.schem"
+    emit.emit(module, library, out, name="and2_test")
+    assert out.exists()
+    # Sponge schem files are gzipped NBT — first 2 bytes are the gzip magic.
+    assert out.read_bytes()[:2] == b"\x1f\x8b"
+
+
 def test_emit_and2_produces_loadable_litematic(library, tmp_path):
     module = frontend.synthesize(FIXTURES / "and2.v", top="and2", gate_set=["AND"])
     tech_map.tech_map(module, library)
