@@ -125,7 +125,7 @@ Tracked as ordered phases. Don't skip ahead — each phase depends on the previo
 - [x] Single-row placer (`strategy="row"`) and L-shaped Manhattan dust router with repeaters every 14 blocks.
 - [x] `route.detect_collisions()` — flags coords where the naive router would short two nets, surfaced as a CLI warning.
 - [ ] **Wire-over-wire crossings on a higher y-layer.** Required for non-trivial designs. Without it `full_adder` routes 60 dust coords with multi-net collisions.
-- [ ] **Stripped-cell semantics validation in-world.** The lever-to-dust replacement should still drive each cell's logic via weak power; needs a real Minecraft test to confirm. `and2` is the canary.
+- [x] **Stripped-cell semantics verified in-world** — `and2.schem` pasted via WorldEdit behaves as a real AND gate (only both levers on → lamp on). The lever-to-dust port replacement correctly delivers weak power into the cell's oak_plank carrier and through the rest of the cell's redstone.
 
 ### Phase 5 — Verification harness (3–4 days)
 - [ ] Learn MCHPRS's RPC/command interface for setting inputs and reading outputs.
