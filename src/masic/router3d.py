@@ -558,10 +558,16 @@ def _pick_repeater_coords(driver, edges, port_coords):
             dy = nxt[1] - cur[1]
             dz = nxt[2] - cur[2]
             is_stair = dy != 0
+            # Look ahead: any of the next moves a stair? If so the repeater's
+            # output side would be unconnected (no flat dust east of it).
+            next_is_stair = any(
+                (g[1] - nxt[1]) != 0 for g in children.get(nxt, ())
+            )
             new_dist = dist + 1
             place_here = (
                 new_dist >= 14
                 and not is_stair
+                and not next_is_stair
                 and nxt not in port_coords
             )
             if place_here:
