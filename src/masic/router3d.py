@@ -49,19 +49,24 @@ class VoxelGrid:
     `port_coord[coord]` — the cell port at this coord (only the port itself,
         not the rest of the cell). Used so the search can land on a port
         without it counting as an obstacle.
+    `cell_xz` — the union of (x, z) footprints of all placed cells. Used to
+        forbid any routing dust above cells: wall-torches inside a cell
+        strong-power the block directly above, which (when used as a stair
+        carrier) leaks power into routing dust at y+1.
     """
 
     obstacles: set[Coord] = field(default_factory=set)
     dust_owner: dict[Coord, str] = field(default_factory=dict)
     port_coord: dict[Coord, tuple[str, str, str]] = field(default_factory=dict)
-    # (cell_name, port_name, side) — side = "input"|"output"
+    cell_xz: set[tuple[int, int]] = field(default_factory=set)
 
     def mark_cell_volume(self, position: Coord, footprint: Coord) -> None:
         px, py, pz = position
         fx, fy, fz = footprint
         for x in range(px, px + fx):
-            for y in range(py, py + fy):
-                for z in range(pz, pz + fz):
+            for z in range(pz, pz + fz):
+                self.cell_xz.add((x, z))
+                for y in range(py, py + fy):
                     self.obstacles.add((x, y, z))
 
     def unmark_port(self, port: Coord) -> None:
@@ -91,12 +96,7 @@ class VoxelGrid:
 
         x, y, z = coord
         if y >= 2:
-            # The carrier position must be either world-air (we'll fill with
-            # stone at emit time) or a cell-floor block. We reject:
-            #   - cell-internal obstacles at y-1 (cell wires/torches: non-solid
-            #     OR would be overwritten causing breakage),
-            #   - cell port coords at y-1 (those become dust after stripping;
-            #     dust is not a valid carrier for the dust above).
+            # Carrier validity (see class docstring).
             below = (x, y - 1, z)
             if below in self.obstacles:
                 return False
@@ -158,7 +158,7 @@ def find_path(
     dst: Coord,
     net: str,
     *,
-    max_iters: int = 200_000,
+    max_iters: int = 2_000_000,
 ) -> list[Coord]:
     """A* search from src to dst, both inclusive. Returns the list of dust
     coordinates the route should occupy. Raises Router3DError on failure."""
@@ -227,7 +227,7 @@ def find_path_multi(
     dst: Coord,
     net: str,
     *,
-    max_iters: int = 200_000,
+    max_iters: int = 2_000_000,
 ) -> list[Coord]:
     """A* from any of `sources` (all at g=0) to `dst`. Returns the path."""
     counter = 0
@@ -329,7 +329,18 @@ def route_one_net(
 
 
 def build_grid(module: Module, library: dict[str, CellSpec]) -> VoxelGrid:
+    """Construct the routing grid:
+      - Cell volumes are obstacles.
+      - Cell ports are punched out of obstacles (entry/exit points).
+      - The "halo" — the 1-block ring around each cell at the port y level — is
+        added to obstacles too, because routing dust placed in the halo ends up
+        adjacent to cell-internal torches/dust and picks up spurious power.
+        Port "approach" coords (one block west of each input port and one east
+        of each output port) are explicitly KEPT clear so routes can still
+        enter and leave at ports.
+    """
     grid = VoxelGrid()
+    port_approaches: set[Coord] = set()
     for cell in module.cells.values():
         if cell.position is None or cell.cell_spec is None:
             continue
@@ -339,10 +350,32 @@ def build_grid(module: Module, library: dict[str, CellSpec]) -> VoxelGrid:
             world = _cell_port_world(cell, port_name, library, "input")
             grid.unmark_port(world)
             grid.port_coord[world] = (cell.name, port_name, "input")
+            port_approaches.add((world[0] - 1, world[1], world[2]))
         for port_name in spec.outputs:
             world = _cell_port_world(cell, port_name, library, "output")
             grid.unmark_port(world)
             grid.port_coord[world] = (cell.name, port_name, "output")
+            port_approaches.add((world[0] + 1, world[1], world[2]))
+
+    # Halo pass. For each cell, add the perimeter at port y to obstacles,
+    # except where it overlaps a port approach.
+    for cell in module.cells.values():
+        if cell.position is None or cell.cell_spec is None:
+            continue
+        spec = library[cell.cell_spec]
+        px, py, pz = cell.position
+        fx, fy, fz = spec.footprint
+        port_y = py + fy - 1
+        cell_xz = {(x, z) for x in range(px, px + fx) for z in range(pz, pz + fz)}
+        for cx, cz in cell_xz:
+            for dx, dz in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                nx, nz = cx + dx, cz + dz
+                if (nx, nz) in cell_xz:
+                    continue
+                halo = (nx, port_y, nz)
+                if halo in port_approaches:
+                    continue
+                grid.obstacles.add(halo)
     return grid
 
 
