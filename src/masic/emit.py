@@ -201,6 +201,13 @@ def _apply_route_block(region, rb: RouteBlock, origin_shift, *, reserved: set | 
         cur = region[(x, y, z)]
         if cur.id == "minecraft:air":
             region[(x, y, z)] = _FLOOR
+    elif rb.kind == "blocker":
+        # An opaque block placed at a stair-corner to break a cross-net
+        # diagonal auto-connection. Only fill if the slot is currently air;
+        # we never overwrite a cell block or an already-placed dust.
+        cur = region[(x, y, z)]
+        if cur.id == "minecraft:air":
+            region[(x, y, z)] = _FLOOR
     elif rb.kind == "repeater":
         region[(x, y, z)] = _REPEATERS.get(rb.facing, _REPEATERS["east"])
     elif rb.kind == "lever":

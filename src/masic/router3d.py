@@ -118,6 +118,9 @@ class VoxelGrid:
             owner = self.dust_owner.get(n)
             if owner is not None and owner != net:
                 return False
+        # Diagonal y-step auto-connection (1 horizontal + 1 y) is handled at
+        # emit time: a stone "corner blocker" is placed above the lower of
+        # any cross-net diagonal pair, breaking line-of-sight.
         return True
 
     def claim_dust(self, coord: Coord, net: str) -> None:
@@ -503,16 +506,30 @@ def route_module_3d(
     cell_port_coords = set(grid.port_coord) - port_coords
     for net_name, driver, loads in work:
         claimed, edges = route_one_net(grid, driver, loads, net_name)
-        # Place dust + floor for every claimed coord.
         for coord in claimed:
             x, y, z = coord
             blocks.append(RouteBlock(coord=coord, kind="dust"))
             blocks.append(RouteBlock(coord=(x, y - 1, z), kind="floor"))
-        # Insert repeaters every <= 14 dust-blocks along the path from
-        # driver outward. Don't place repeaters at cell ports or stair steps.
         repeater_coords = _pick_repeater_coords(driver, edges, cell_port_coords)
         for coord, facing in repeater_coords:
             blocks.append(RouteBlock(coord=coord, kind="repeater", facing=facing))
+
+    # Corner blockers: for every cross-net diagonal pair (1 horizontal + 1 y),
+    # place an opaque block above the lower dust to break the auto-connection
+    # line-of-sight. Cell ports never need a blocker over them.
+    blocker_coords: set[Coord] = set()
+    for coord, owner in grid.dust_owner.items():
+        x, y, z = coord
+        for dx, dz in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            up = (x + dx, y + 1, z + dz)
+            up_owner = grid.dust_owner.get(up)
+            if up_owner is not None and up_owner != owner:
+                # `coord` is the lower of the pair. Blocker at (x, y+1, z).
+                blocker_coords.add((x, y + 1, z))
+    # Don't blocker over a coord that's already dust (would erase a wire).
+    blocker_coords -= set(grid.dust_owner)
+    for c in blocker_coords:
+        blocks.append(RouteBlock(coord=c, kind="blocker"))
 
     return blocks, ports
 
