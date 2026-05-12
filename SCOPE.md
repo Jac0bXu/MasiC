@@ -126,6 +126,7 @@ Tracked as ordered phases. Don't skip ahead — each phase depends on the previo
 - [x] `route.detect_collisions()` — flags coords where the naive router would short two nets, surfaced as a CLI warning.
 - [ ] **Wire-over-wire crossings on a higher y-layer.** Required for non-trivial designs. Without it `full_adder` routes 60 dust coords with multi-net collisions.
 - [x] **Stripped-cell semantics verified in-world** — `and2.schem` pasted via WorldEdit behaves as a real AND gate (only both levers on → lamp on). The lever-to-dust port replacement correctly delivers weak power into the cell's oak_plank carrier and through the rest of the cell's redstone.
+- [x] **Topological cell ordering + multi-lane router with per-load drop offsets** — the placer topo-sorts cells (drivers before loads, signals flow +x); module-input nets with a single load align directly with the load's z (no separate lane), and every other net gets a unique z-lane with each load dropping at a unique x-offset to avoid same-column drop bridging. `and2` routes cleanly with zero collisions. `full_adder` still has ~26 dust coords routed by multiple nets — these are the cases where a drop crosses another net's lane at the lane's east-west extent, which can only be resolved with multi-y (vertical-staircase) routing.
 
 ### Phase 5 — Verification harness (3–4 days)
 - [ ] Learn MCHPRS's RPC/command interface for setting inputs and reading outputs.
