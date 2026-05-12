@@ -91,24 +91,27 @@ class VoxelGrid:
 
         x, y, z = coord
         if y >= 2:
-            # The carrier position must not be a cell-logic obstacle.
+            # The carrier position must be either world-air (we'll fill with
+            # stone at emit time) or a cell-floor block. We reject:
+            #   - cell-internal obstacles at y-1 (cell wires/torches: non-solid
+            #     OR would be overwritten causing breakage),
+            #   - cell port coords at y-1 (those become dust after stripping;
+            #     dust is not a valid carrier for the dust above).
             below = (x, y - 1, z)
             if below in self.obstacles:
                 return False
-
-        # Stacked dust is forbidden in both directions: the position above
-        # the candidate must not be another net's dust (would block stair
-        # line-of-sight from below), and the position below the candidate
-        # must not be another net's dust (would mean using its dust as our
-        # carrier — dust isn't a valid carrier block).
-        above = (x, y + 1, z)
-        above_owner = self.dust_owner.get(above)
-        if above_owner is not None and above_owner != net:
-            return False
-        if y >= 2:
-            below_owner = self.dust_owner.get((x, y - 1, z))
-            if below_owner is not None and below_owner != net:
+            if below in self.port_coord:
                 return False
+
+        # Forbid ALL stacked dust (any net). Dust is not a solid carrier for
+        # the dust above it, so a stack always produces a floating block.
+        # The position above must be air; the position below must be solid
+        # (we don't track solidity precisely — but if it's dust, that's wrong).
+        above = (x, y + 1, z)
+        if above in self.dust_owner:
+            return False
+        if y >= 2 and (x, y - 1, z) in self.dust_owner:
+            return False
 
         for dx, dz in ((1, 0), (-1, 0), (0, 1), (0, -1)):
             n = (x + dx, y, z + dz)
@@ -250,18 +253,26 @@ def find_path_multi(
         for nxt, delta in _moves(current, current, dst):
             if nxt != dst and not grid.is_passable(nxt, net):
                 continue
-            if not (0 <= nxt[1] <= 32):
+            # Bound y: 1 is the lowest legal dust level (carrier at y=0 lives
+            # under the cells or as world floor we add at emit time); below y=1
+            # has no carrier and the dust drops on paste.
+            if not (1 <= nxt[1] <= 32):
+                # Special case: destination ports themselves may be at y=0
+                # (e.g. NOT/DFF cells), so the dst exception still lets us land.
                 continue
-            # Disallow ascending into a coord whose space above is claimed
-            # (would block the staircase line-of-sight for the dust below).
+            # Disallow ascending into a coord whose space above is claimed.
             if delta[1] > 0:
-                # The current coord becomes the "lower" dust in a stair pair;
-                # the position one above it must remain air for the upward
-                # signal to conduct. Reject the move if anything already owns it.
                 cur_above = (current[0], current[1] + 1, current[2])
-                if grid.dust_owner.get(cur_above) not in (None, net):
+                if grid.dust_owner.get(cur_above) is not None:
                     continue
                 if cur_above in grid.obstacles:
+                    continue
+            # Also forbid the symmetric case for descending: stepping into a
+            # coord whose space above is owned by another net (this means we'd
+            # be stacking and blocking that net's stair).
+            if delta[1] < 0:
+                nxt_above = (nxt[0], nxt[1] + 1, nxt[2])
+                if grid.dust_owner.get(nxt_above) is not None:
                     continue
             tentative = g_score[current] + _move_cost(delta)
             if tentative >= g_score.get(nxt, 10**9):
@@ -451,11 +462,66 @@ def route_module_3d(
             grid.claim_dust(ld, net_name)
 
     # Route each net. The driver is the seed; loads are visited greedily.
+    port_coords = {c for c in (ports.values())}
+    cell_port_coords = set(grid.port_coord) - port_coords
     for net_name, driver, loads in work:
-        claimed, _ = route_one_net(grid, driver, loads, net_name)
+        claimed, edges = route_one_net(grid, driver, loads, net_name)
+        # Place dust + floor for every claimed coord.
         for coord in claimed:
             x, y, z = coord
             blocks.append(RouteBlock(coord=coord, kind="dust"))
             blocks.append(RouteBlock(coord=(x, y - 1, z), kind="floor"))
+        # Insert repeaters every <= 14 dust-blocks along the path from
+        # driver outward. Don't place repeaters at cell ports or stair steps.
+        repeater_coords = _pick_repeater_coords(driver, edges, cell_port_coords)
+        for coord, facing in repeater_coords:
+            blocks.append(RouteBlock(coord=coord, kind="repeater", facing=facing))
 
     return blocks, ports
+
+
+def _pick_repeater_coords(driver, edges, port_coords):
+    """Walk the path tree from `driver` and pick coords every ~14 dust-steps
+    along straight horizontal runs to convert into repeaters."""
+    # Build adjacency from edges (undirected for traversal, directed for facing).
+    children: dict = {}
+    parent_of: dict = {}
+    for parent, child in edges:
+        children.setdefault(parent, []).append(child)
+        parent_of[child] = parent
+
+    repeaters: list[tuple[Coord, str]] = []
+    visited: set = {driver}
+    # BFS with cumulative distance reset on repeater placement.
+    queue: list[tuple[Coord, int]] = [(driver, 0)]
+    while queue:
+        cur, dist = queue.pop(0)
+        for nxt in children.get(cur, ()):
+            if nxt in visited:
+                continue
+            visited.add(nxt)
+            dx = nxt[0] - cur[0]
+            dy = nxt[1] - cur[1]
+            dz = nxt[2] - cur[2]
+            is_stair = dy != 0
+            new_dist = dist + 1
+            place_here = (
+                new_dist >= 14
+                and not is_stair
+                and nxt not in port_coords
+            )
+            if place_here:
+                facing = _facing_from_delta(dx, dz)
+                if facing is not None:
+                    repeaters.append((nxt, facing))
+                    new_dist = 0
+            queue.append((nxt, new_dist))
+    return repeaters
+
+
+def _facing_from_delta(dx: int, dz: int) -> str | None:
+    if dx == 1: return "east"
+    if dx == -1: return "west"
+    if dz == 1: return "south"
+    if dz == -1: return "north"
+    return None

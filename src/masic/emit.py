@@ -28,8 +28,12 @@ _DUST = BlockState("minecraft:redstone_wire")
 _AIR = BlockState("minecraft:air")
 _LEVER = BlockState("minecraft:lever", face="floor", facing="south")
 _LAMP = BlockState("minecraft:redstone_lamp")
-_REPEATER_E = BlockState("minecraft:repeater", facing="east", delay="1")
-_REPEATER_W = BlockState("minecraft:repeater", facing="west", delay="1")
+_REPEATERS = {
+    "east": BlockState("minecraft:repeater", facing="east", delay="1"),
+    "west": BlockState("minecraft:repeater", facing="west", delay="1"),
+    "north": BlockState("minecraft:repeater", facing="north", delay="1"),
+    "south": BlockState("minecraft:repeater", facing="south", delay="1"),
+}
 
 
 def emit(
@@ -198,7 +202,7 @@ def _apply_route_block(region, rb: RouteBlock, origin_shift, *, reserved: set | 
         if cur.id == "minecraft:air":
             region[(x, y, z)] = _FLOOR
     elif rb.kind == "repeater":
-        region[(x, y, z)] = _REPEATER_E if rb.facing == "east" else _REPEATER_W
+        region[(x, y, z)] = _REPEATERS.get(rb.facing, _REPEATERS["east"])
     elif rb.kind == "lever":
         region[(x, y, z)] = _LEVER
     elif rb.kind == "lamp":
