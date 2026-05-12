@@ -8,6 +8,13 @@ ports:
   outputs:
     Y: {coord: [3, 0, 0], kind: lamp}
 delay_ticks: 1
+# Coords (relative to the normalized footprint) of every block inside the cell
+# that emits redstone power outward — torches, comparator outputs, repeater
+# outputs. The router uses these to compute a precise halo (forbidden routing
+# coords at same y, adjacent on the cell exterior) instead of the whole cell
+# perimeter, so routes can still hug the cell where it's safe.
+power_emitters:
+  - [2, 0, 0]    # redstone_wall_torch — the inverter
 truth_table:
   - {A: 0, Y: 1}
   - {A: 1, Y: 0}

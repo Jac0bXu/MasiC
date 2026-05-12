@@ -357,22 +357,26 @@ def build_grid(module: Module, library: dict[str, CellSpec]) -> VoxelGrid:
             grid.port_coord[world] = (cell.name, port_name, "output")
             port_approaches.add((world[0] + 1, world[1], world[2]))
 
-    # Halo pass. For each cell, add the perimeter at port y to obstacles,
-    # except where it overlaps a port approach.
+    # Halo pass. For each declared power emitter, mark the 4 same-y neighbors
+    # OUTSIDE the cell footprint as obstacles. This is the precise version of
+    # the old "whole cell perimeter" halo — most perimeter positions are safe
+    # (oak_planks, dirt) and only positions adjacent to torches/comparators/
+    # repeater outputs need to be excluded so routing dust doesn't catch
+    # spurious power from cell internals.
     for cell in module.cells.values():
         if cell.position is None or cell.cell_spec is None:
             continue
         spec = library[cell.cell_spec]
         px, py, pz = cell.position
-        fx, fy, fz = spec.footprint
-        port_y = py + fy - 1
+        fx, _, fz = spec.footprint
         cell_xz = {(x, z) for x in range(px, px + fx) for z in range(pz, pz + fz)}
-        for cx, cz in cell_xz:
+        for ex_local, ey_local, ez_local in spec.power_emitters:
+            ex, ey, ez = px + ex_local, py + ey_local, pz + ez_local
             for dx, dz in ((1, 0), (-1, 0), (0, 1), (0, -1)):
-                nx, nz = cx + dx, cz + dz
+                nx, nz = ex + dx, ez + dz
                 if (nx, nz) in cell_xz:
-                    continue
-                halo = (nx, port_y, nz)
+                    continue  # already inside cell volume / obstacle
+                halo = (nx, ey, nz)
                 if halo in port_approaches:
                     continue
                 grid.obstacles.add(halo)

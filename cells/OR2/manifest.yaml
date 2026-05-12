@@ -10,6 +10,7 @@ ports:
   outputs:
     Y: {coord: [4, 1, 0], kind: lamp}
 delay_ticks: 1
+power_emitters: []   # pure dust-merge, no torches
 truth_table:
   - {A: 0, B: 0, Y: 0}
   - {A: 0, B: 1, Y: 1}

@@ -58,6 +58,11 @@ class CellSpec:
     truth_table: list[dict[str, int]] = field(default_factory=list)
     schematic_path: Path | None = None
     manifest_path: Path | None = None
+    # Cell-internal coords (relative to the normalized footprint) of blocks
+    # that emit redstone power outward: wall_torches, comparator outputs,
+    # repeater outputs. The router uses these to forbid only the halo coords
+    # adjacent to actual power emitters, not the whole cell perimeter.
+    power_emitters: list[Coord] = field(default_factory=list)
 
     @property
     def has_schematic(self) -> bool:
@@ -116,6 +121,7 @@ def _parse_manifest(raw: dict, manifest_path: Path) -> CellSpec:
     inputs = {n: _port(n, p) for n, p in raw["ports"]["inputs"].items()}
     outputs = {n: _port(n, p) for n, p in raw["ports"]["outputs"].items()}
     schematic = manifest_path.parent / raw.get("schematic", "cell.litematic")
+    emitters = [tuple(c) for c in raw.get("power_emitters", [])]
     return CellSpec(
         name=raw["name"],
         yosys_types=list(raw.get("yosys_types", [])),
@@ -127,6 +133,7 @@ def _parse_manifest(raw: dict, manifest_path: Path) -> CellSpec:
         truth_table=list(raw.get("truth_table", [])),
         schematic_path=schematic,
         manifest_path=manifest_path,
+        power_emitters=emitters,  # type: ignore[arg-type]
     )
 
 

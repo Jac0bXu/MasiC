@@ -13,3 +13,9 @@ ports:
   outputs:
     Q:   {coord: [5, 0, 0], kind: lamp}
 delay_ticks: 4
+power_emitters:
+  - [1, 0, 1]    # wall_torch
+  - [2, 0, 1]    # repeater output
+  - [2, 0, 2]    # repeater output
+  - [3, 0, 1]    # repeater output
+  - [3, 0, 2]    # repeater output

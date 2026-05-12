@@ -10,6 +10,11 @@ ports:
   outputs:
     Y: {coord: [4, 1, 1], kind: lamp}
 delay_ticks: 3
+power_emitters:
+  - [2, 1, 0]    # wall_torch
+  - [2, 1, 1]    # wall_torch
+  - [2, 1, 2]    # wall_torch
+  - [3, 1, 1]    # comparator output
 truth_table:
   - {A: 0, B: 0, Y: 0}
   - {A: 0, B: 1, Y: 0}
