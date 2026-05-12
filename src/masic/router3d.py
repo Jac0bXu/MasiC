@@ -59,6 +59,9 @@ class VoxelGrid:
     dust_owner: dict[Coord, str] = field(default_factory=dict)
     port_coord: dict[Coord, tuple[str, str, str]] = field(default_factory=dict)
     cell_xz: set[tuple[int, int]] = field(default_factory=set)
+    # port (input/output) → the single legal "approach" coord that the route
+    # must come from on the final step into the port.
+    port_legal_approach: dict[Coord, Coord] = field(default_factory=dict)
 
     def mark_cell_volume(self, position: Coord, footprint: Coord) -> None:
         px, py, pz = position
@@ -187,11 +190,16 @@ def find_path(
             return _reconstruct(came_from, src, dst)
 
         for nxt, _delta in _moves(current, src, dst):
-            # The destination is always allowed even if it would normally be an
-            # obstacle/port — that's where we're heading.
             if nxt != dst and not grid.is_passable(nxt, net):
                 continue
-            # Bounds sanity: keep y in [0, 32] for now to bound the search.
+            if nxt == dst:
+                legal_approach = grid.port_legal_approach.get(dst)
+                if legal_approach is not None:
+                    ax, ay, az = legal_approach
+                    cx, cy, cz = current
+                    if not ((current == legal_approach)
+                            or (cx == ax and cz == az and abs(cy - ay) == 1)):
+                        continue
             if not (0 <= nxt[1] <= 32):
                 continue
             tentative = g_score[current] + 1
@@ -256,12 +264,20 @@ def find_path_multi(
         for nxt, delta in _moves(current, current, dst):
             if nxt != dst and not grid.is_passable(nxt, net):
                 continue
-            # Bound y: 1 is the lowest legal dust level (carrier at y=0 lives
-            # under the cells or as world floor we add at emit time); below y=1
-            # has no carrier and the dust drops on paste.
+            # Final step into a port must come from its legal approach. We
+            # also allow stair-down moves that land on the port FROM the
+            # approach's z (i.e. the approach is just above the port and one
+            # block away in the approach direction), since redstone conducts
+            # across that diagonal.
+            if nxt == dst:
+                legal_approach = grid.port_legal_approach.get(dst)
+                if legal_approach is not None:
+                    ax, ay, az = legal_approach
+                    cx, cy, cz = current
+                    if not ((current == legal_approach)
+                            or (cx == ax and cz == az and abs(cy - ay) == 1)):
+                        continue
             if not (1 <= nxt[1] <= 32):
-                # Special case: destination ports themselves may be at y=0
-                # (e.g. NOT/DFF cells), so the dst exception still lets us land.
                 continue
             # Disallow ascending into a coord whose space above is claimed.
             if delta[1] > 0:
@@ -344,6 +360,12 @@ def build_grid(module: Module, library: dict[str, CellSpec]) -> VoxelGrid:
     """
     grid = VoxelGrid()
     port_approaches: set[Coord] = set()
+    # For each port, record the legal "approach" coord — the route's final
+    # step into the port must come from there. This funnels every approach
+    # through the west face of inputs and the east face of outputs, so two
+    # different nets can never end up next to the same port from different
+    # angles.
+    port_legal_approach: dict[Coord, Coord] = {}
     for cell in module.cells.values():
         if cell.position is None or cell.cell_spec is None:
             continue
@@ -353,12 +375,17 @@ def build_grid(module: Module, library: dict[str, CellSpec]) -> VoxelGrid:
             world = _cell_port_world(cell, port_name, library, "input")
             grid.unmark_port(world)
             grid.port_coord[world] = (cell.name, port_name, "input")
-            port_approaches.add((world[0] - 1, world[1], world[2]))
+            approach = (world[0] - 1, world[1], world[2])
+            port_approaches.add(approach)
+            port_legal_approach[world] = approach
         for port_name in spec.outputs:
             world = _cell_port_world(cell, port_name, library, "output")
             grid.unmark_port(world)
             grid.port_coord[world] = (cell.name, port_name, "output")
-            port_approaches.add((world[0] + 1, world[1], world[2]))
+            approach = (world[0] + 1, world[1], world[2])
+            port_approaches.add(approach)
+            port_legal_approach[world] = approach
+    grid.port_legal_approach = port_legal_approach
 
     # Halo pass. For each declared power emitter, mark the 4 same-y neighbors
     # OUTSIDE the cell footprint as obstacles. This is the precise version of
