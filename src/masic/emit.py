@@ -17,6 +17,7 @@ from .ir import Module
 from .place import cell_footprint
 from .route import RouteBlock, module_io_positions, route_module
 from .router3d import route_module_3d
+from .router_channel import route_module_channel
 
 
 class EmitError(ValueError):
@@ -63,8 +64,10 @@ def emit(
             route_blocks, ports = route_module_3d(module, library)
         elif router == "2d":
             route_blocks, ports = route_module(module, library)
+        elif router == "channel":
+            route_blocks, ports = route_module_channel(module, library)
         else:
-            raise EmitError(f"unknown router {router!r}; want '2d' or '3d'")
+            raise EmitError(f"unknown router {router!r}; want '2d', '3d', or 'channel'")
     else:
         route_blocks, ports = [], {}
 

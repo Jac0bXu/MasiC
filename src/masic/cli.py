@@ -30,9 +30,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     p_synth.add_argument(
         "--router",
-        choices=("2d", "3d"),
+        choices=("2d", "3d", "channel"),
         default="2d",
-        help="Router backend: 2d lane-based (default) or 3d A* maze.",
+        help="Router backend: 2d lane (default), 3d A* maze, or channel "
+             "(MinecraftHDL-inspired structured tracks).",
     )
 
     p_verify = sub.add_parser("verify", help="Cosim SV against generated redstone (TODO)")
