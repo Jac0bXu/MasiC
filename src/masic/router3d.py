@@ -504,19 +504,38 @@ def route_module_3d(
     # Route each net. The driver is the seed; loads are visited greedily.
     port_coords = {c for c in (ports.values())}
     cell_port_coords = set(grid.port_coord) - port_coords
+
+    per_net: list[tuple[str, Coord, set[Coord], list[tuple[Coord, Coord]]]] = []
     for net_name, driver, loads in work:
         claimed, edges = route_one_net(grid, driver, loads, net_name)
+        per_net.append((net_name, driver, claimed, edges))
+
+    # Collect every stair corner across all nets. These positions MUST remain
+    # air for the staircase line-of-sight to conduct (per the redstone-mechanics
+    # spec). Stone floor placements from other nets' dust must skip these coords.
+    stair_corners: set[Coord] = set()
+    for _, _, _, edges in per_net:
+        for parent, child in edges:
+            if child[1] > parent[1]:
+                stair_corners.add((parent[0], parent[1] + 1, parent[2]))
+            elif child[1] < parent[1]:
+                stair_corners.add((child[0], child[1] + 1, child[2]))
+
+    for net_name, driver, claimed, edges in per_net:
         for coord in claimed:
             x, y, z = coord
             blocks.append(RouteBlock(coord=coord, kind="dust"))
-            blocks.append(RouteBlock(coord=(x, y - 1, z), kind="floor"))
+            floor_coord = (x, y - 1, z)
+            if floor_coord not in stair_corners:
+                blocks.append(RouteBlock(coord=floor_coord, kind="floor"))
         repeater_coords = _pick_repeater_coords(driver, edges, cell_port_coords)
         for coord, facing in repeater_coords:
             blocks.append(RouteBlock(coord=coord, kind="repeater", facing=facing))
 
     # Corner blockers: for every cross-net diagonal pair (1 horizontal + 1 y),
     # place an opaque block above the lower dust to break the auto-connection
-    # line-of-sight. Cell ports never need a blocker over them.
+    # line-of-sight. Skip coords that are already dust OR are a same-net stair
+    # corner (those MUST stay air or we'd block our own staircase too).
     blocker_coords: set[Coord] = set()
     for coord, owner in grid.dust_owner.items():
         x, y, z = coord
@@ -524,10 +543,9 @@ def route_module_3d(
             up = (x + dx, y + 1, z + dz)
             up_owner = grid.dust_owner.get(up)
             if up_owner is not None and up_owner != owner:
-                # `coord` is the lower of the pair. Blocker at (x, y+1, z).
                 blocker_coords.add((x, y + 1, z))
-    # Don't blocker over a coord that's already dust (would erase a wire).
     blocker_coords -= set(grid.dust_owner)
+    blocker_coords -= stair_corners
     for c in blocker_coords:
         blocks.append(RouteBlock(coord=c, kind="blocker"))
 
