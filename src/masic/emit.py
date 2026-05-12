@@ -16,6 +16,7 @@ from .cell_library import CellSpec
 from .ir import Module
 from .place import cell_footprint
 from .route import RouteBlock, module_io_positions, route_module
+from .router3d import route_module_3d
 
 
 class EmitError(ValueError):
@@ -38,11 +39,13 @@ def emit(
     *,
     name: str | None = None,
     with_routing: bool = True,
+    router: str = "2d",
 ) -> Path:
     """Write the full circuit. Output format = filename extension.
 
     `.schem`     → Sponge v3, loadable via WorldEdit (`//schem load && //paste`)
     `.litematic` → Litematica's format
+    `router`     → "2d" (default, lane-based) or "3d" (A* maze).
     """
     out_path = Path(out_path)
     suffix = out_path.suffix.lower()
@@ -52,7 +55,12 @@ def emit(
         raise EmitError(f"module {module.name!r} has no cells to emit")
 
     if with_routing:
-        route_blocks, ports = route_module(module, library)
+        if router == "3d":
+            route_blocks, ports = route_module_3d(module, library)
+        elif router == "2d":
+            route_blocks, ports = route_module(module, library)
+        else:
+            raise EmitError(f"unknown router {router!r}; want '2d' or '3d'")
     else:
         route_blocks, ports = [], {}
 

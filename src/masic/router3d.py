@@ -70,15 +70,40 @@ class VoxelGrid:
         self.obstacles.discard(port)
 
     def is_passable(self, coord: Coord, net: str) -> bool:
-        """Can the router place dust at `coord` for the given net?"""
+        """Can the router place dust at `coord` for the given net?
+
+        Three checks:
+          1. coord itself is not a cell obstacle (and not already owned by
+             a different net).
+          2. The carrier block one below (x, y-1, z) is not a cell-internal
+             obstacle. (For y=1 dust the carrier is at y=0 which may be the
+             cell's own floor — that's a solid block, fine. For y>=2 dust
+             we require the position one below to be EITHER air, an
+             obstacle that is part of a cell's floor row, OR already a
+             carrier; cell-logic positions are rejected.)
+          3. No same-y orthogonal neighbor belongs to a different net.
+        """
         if coord in self.obstacles:
             return False
         existing = self.dust_owner.get(coord)
         if existing is not None and existing != net:
             return False
-        # Check the four horizontal orthogonal neighbors at same y. If any of
-        # them belong to a DIFFERENT net, dust at `coord` would auto-bridge.
+
         x, y, z = coord
+        if y >= 2:
+            # The carrier position must not be a cell-logic obstacle.
+            below = (x, y - 1, z)
+            if below in self.obstacles:
+                return False
+
+        # Above the dust must be air for staircases below to conduct upward;
+        # we don't model upper-block constraints exactly but the heuristic
+        # avoids placing dust directly under another routed dust.
+        above = (x, y + 1, z)
+        above_owner = self.dust_owner.get(above)
+        if above_owner is not None and above_owner != net:
+            return False
+
         for dx, dz in ((1, 0), (-1, 0), (0, 1), (0, -1)):
             n = (x + dx, y, z + dz)
             owner = self.dust_owner.get(n)
@@ -179,6 +204,95 @@ def _reconstruct(came_from: dict[Coord, Coord], src: Coord, dst: Coord) -> list[
     return path
 
 
+def find_path_multi(
+    grid: VoxelGrid,
+    sources: Iterable[Coord],
+    dst: Coord,
+    net: str,
+    *,
+    max_iters: int = 200_000,
+) -> list[Coord]:
+    """A* from any of `sources` (all at g=0) to `dst`. Returns the path
+    starting at the chosen source and ending at dst."""
+    counter = 0
+    open_heap: list[tuple[int, int, Coord]] = []
+    g_score: dict[Coord, int] = {}
+    came_from: dict[Coord, Coord] = {}
+    sources_set = set(sources)
+    for s in sources_set:
+        g_score[s] = 0
+        heapq.heappush(open_heap, (_manhattan(s, dst), counter, s))
+        counter += 1
+
+    iters = 0
+    while open_heap:
+        iters += 1
+        if iters > max_iters:
+            raise Router3DError(
+                f"A* exhausted {max_iters} iterations for net {net!r} → {dst}")
+        _, _, current = heapq.heappop(open_heap)
+        if current == dst:
+            return _reconstruct_multi(came_from, sources_set, dst)
+
+        for nxt, _delta in _moves(current, current, dst):
+            if nxt != dst and not grid.is_passable(nxt, net):
+                continue
+            if not (0 <= nxt[1] <= 32):
+                continue
+            tentative = g_score[current] + 1
+            if tentative >= g_score.get(nxt, 10**9):
+                continue
+            g_score[nxt] = tentative
+            came_from[nxt] = current
+            heapq.heappush(open_heap, (tentative + _manhattan(nxt, dst), counter, nxt))
+            counter += 1
+
+    raise Router3DError(f"no path found for net {net!r} → {dst}")
+
+
+def _reconstruct_multi(came_from: dict[Coord, Coord], sources: set[Coord], dst: Coord) -> list[Coord]:
+    path = [dst]
+    cur = dst
+    while cur not in sources:
+        cur = came_from[cur]
+        path.append(cur)
+    path.reverse()
+    return path
+
+
+def route_one_net(
+    grid: VoxelGrid,
+    driver: Coord,
+    loads: list[Coord],
+    net: str,
+) -> tuple[set[Coord], list[tuple[Coord, Coord]]]:
+    """Greedy Steiner-like routing: route driver to nearest load, then keep
+    extending the spanning tree to the next-nearest load from any existing dust.
+
+    Returns (set of all dust coords, list of (parent, child) edges).
+    """
+    claimed: set[Coord] = {driver}
+    edges: list[tuple[Coord, Coord]] = []
+    remaining = list(loads)
+
+    while remaining:
+        # Pick the load with the smallest distance to any currently-claimed coord.
+        best_idx = min(
+            range(len(remaining)),
+            key=lambda i: min(_manhattan(c, remaining[i]) for c in claimed),
+        )
+        target = remaining.pop(best_idx)
+        path = find_path_multi(grid, claimed, target, net)
+        # Append every new coord (path[0] is in claimed; skip it for edges).
+        for i in range(1, len(path)):
+            parent, child = path[i - 1], path[i]
+            edges.append((parent, child))
+            if child not in claimed:
+                claimed.add(child)
+                grid.claim_dust(child, net)
+    return claimed, edges
+
+
 def build_grid(module: Module, library: dict[str, CellSpec]) -> VoxelGrid:
     grid = VoxelGrid()
     for cell in module.cells.values():
@@ -186,13 +300,138 @@ def build_grid(module: Module, library: dict[str, CellSpec]) -> VoxelGrid:
             continue
         spec = library[cell.cell_spec]
         grid.mark_cell_volume(cell.position, spec.footprint)
-        # Every cell port is a valid entry/exit for the router.
-        for port_name, port in spec.inputs.items():
+        for port_name in spec.inputs:
             world = _cell_port_world(cell, port_name, library, "input")
             grid.unmark_port(world)
             grid.port_coord[world] = (cell.name, port_name, "input")
-        for port_name, port in spec.outputs.items():
+        for port_name in spec.outputs:
             world = _cell_port_world(cell, port_name, library, "output")
             grid.unmark_port(world)
             grid.port_coord[world] = (cell.name, port_name, "output")
     return grid
+
+
+def _module_io_positions_3d(
+    module: Module,
+    library: dict[str, CellSpec],
+) -> dict[str, Coord]:
+    """External lever/lamp positions. Each port aligns z with the first cell
+    port it connects to; module inputs sit west of all cells, outputs east.
+    """
+    if not module.cells:
+        return {}
+    xs = [c.position[0] for c in module.cells.values() if c.position]
+    min_x, max_x = min(xs), max(xs)
+    max_fx = max(library[c.cell_spec].footprint[0] for c in module.cells.values() if c.cell_spec)
+    margin = _max_input_offset(library) + 2
+    west_edge = min_x - margin
+    east_edge = max_x + max_fx + margin
+    route_y = max(library[c.cell_spec].footprint[1] - 1
+                  for c in module.cells.values() if c.cell_spec)
+
+    used: set[tuple[int, int]] = set()  # (edge_x, z) pairs
+    pos: dict[str, Coord] = {}
+
+    def _pick(edge_x: int, preferred_z: int) -> int:
+        z = preferred_z
+        while (edge_x, z) in used:
+            z += 2
+        used.add((edge_x, z))
+        return z
+
+    for port in module.ports:
+        net = module.nets.get(port.name)
+        if net is None:
+            continue
+        if port.direction == "input":
+            if not net.loads:
+                continue
+            load_cell = module.cells[net.loads[0][0]]
+            load_port = net.loads[0][1]
+            spec = library[load_cell.cell_spec]
+            preferred = load_cell.position[2] + spec.inputs[load_port].coord[2]
+            z = _pick(west_edge, preferred)
+            pos[port.name] = (west_edge, route_y, z)
+        else:
+            if net.driver is None:
+                continue
+            driver_cell = module.cells[net.driver[0]]
+            driver_port = net.driver[1]
+            spec = library[driver_cell.cell_spec]
+            preferred = driver_cell.position[2] + spec.outputs[driver_port].coord[2]
+            z = _pick(east_edge, preferred)
+            pos[port.name] = (east_edge, route_y, z)
+    return pos
+
+
+def route_module_3d(
+    module: Module,
+    library: dict[str, CellSpec],
+) -> tuple[list[RouteBlock], dict[str, Coord]]:
+    """Route every net with the A* maze router. Returns the same (blocks, ports)
+    tuple as `route.route_module` for drop-in use by the emitter."""
+    grid = build_grid(module, library)
+    ports = _module_io_positions_3d(module, library)
+
+    blocks: list[RouteBlock] = []
+    input_port_names = {p.name for p in module.ports if p.direction == "input"}
+    output_port_names = {p.name for p in module.ports if p.direction == "output"}
+    for port_name, coord in ports.items():
+        if port_name in input_port_names:
+            blocks.append(RouteBlock(coord=coord, kind="lever"))
+        elif port_name in output_port_names:
+            blocks.append(RouteBlock(coord=coord, kind="lamp"))
+        blocks.append(RouteBlock(coord=(coord[0], coord[1] - 1, coord[2]), kind="floor"))
+        grid.unmark_port(coord)
+        grid.port_coord[coord] = ("__module__", port_name,
+                                  "input" if port_name in input_port_names else "output")
+
+    # Build the per-net work list: (net_name, driver_coord, [load_coords])
+    work: list[tuple[str, Coord, list[Coord]]] = []
+    for net in module.nets.values():
+        if net.name in ports and net.driver is None:
+            driver = ports[net.name]  # module input lever
+        elif net.driver is not None:
+            inst, port = net.driver
+            cell = module.cells.get(inst)
+            if cell is None:
+                continue
+            driver = _cell_port_world(cell, port, library, "output")
+        else:
+            continue
+
+        loads: list[Coord] = []
+        for inst, port in net.loads:
+            cell = module.cells.get(inst)
+            if cell is None:
+                continue
+            loads.append(_cell_port_world(cell, port, library, "input"))
+        if net.name in output_port_names and net.name in ports:
+            loads.append(ports[net.name])
+        if not loads:
+            continue
+        work.append((net.name, driver, loads))
+
+    # Net-ordering heuristic: route nets with the most loads first; tie-break
+    # on total Manhattan span. Hard nets eat space before easy ones.
+    def priority(w):
+        name, driver, loads = w
+        span = sum(_manhattan(driver, ld) for ld in loads)
+        return (-len(loads), -span, name)
+    work.sort(key=priority)
+
+    # Pre-claim every driver and load coord so other nets cannot route through them.
+    for net_name, driver, loads in work:
+        grid.claim_dust(driver, net_name)
+        for ld in loads:
+            grid.claim_dust(ld, net_name)
+
+    # Route each net. The driver is the seed; loads are visited greedily.
+    for net_name, driver, loads in work:
+        claimed, _ = route_one_net(grid, driver, loads, net_name)
+        for coord in claimed:
+            x, y, z = coord
+            blocks.append(RouteBlock(coord=coord, kind="dust"))
+            blocks.append(RouteBlock(coord=(x, y - 1, z), kind="floor"))
+
+    return blocks, ports

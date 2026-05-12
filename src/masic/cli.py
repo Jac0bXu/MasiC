@@ -28,6 +28,12 @@ def main(argv: list[str] | None = None) -> int:
         metavar="KEY=VAL",
         help="Override a top-level parameter (repeatable)",
     )
+    p_synth.add_argument(
+        "--router",
+        choices=("2d", "3d"),
+        default="2d",
+        help="Router backend: 2d lane-based (default) or 3d A* maze.",
+    )
 
     p_verify = sub.add_parser("verify", help="Cosim SV against generated redstone (TODO)")
     p_verify.add_argument("input")
@@ -52,12 +58,13 @@ def _run_synth(args: argparse.Namespace) -> int:
     )
     tech_map.tech_map(module, library)
     place.place(module, library)
-    collisions = route.detect_collisions(module, library)
-    if collisions:
-        print(f"WARNING: {len(collisions)} dust coords are routed by multiple nets "
-              f"(the naive single-layer router will short these together). "
-              f"The output schematic will be emitted anyway, but expect wrong behavior.")
-    emit.emit(module, library, Path(args.output))
+    if args.router == "2d":
+        collisions = route.detect_collisions(module, library)
+        if collisions:
+            print(f"WARNING: {len(collisions)} dust coords are routed by multiple nets "
+                  f"(the naive single-layer router will short these together). "
+                  f"The output schematic will be emitted anyway, but expect wrong behavior.")
+    emit.emit(module, library, Path(args.output), router=args.router)
     print(f"wrote {args.output} ({len(module.cells)} cells)")
     return 0
 
