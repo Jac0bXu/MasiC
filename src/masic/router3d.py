@@ -96,13 +96,19 @@ class VoxelGrid:
             if below in self.obstacles:
                 return False
 
-        # Above the dust must be air for staircases below to conduct upward;
-        # we don't model upper-block constraints exactly but the heuristic
-        # avoids placing dust directly under another routed dust.
+        # Stacked dust is forbidden in both directions: the position above
+        # the candidate must not be another net's dust (would block stair
+        # line-of-sight from below), and the position below the candidate
+        # must not be another net's dust (would mean using its dust as our
+        # carrier — dust isn't a valid carrier block).
         above = (x, y + 1, z)
         above_owner = self.dust_owner.get(above)
         if above_owner is not None and above_owner != net:
             return False
+        if y >= 2:
+            below_owner = self.dust_owner.get((x, y - 1, z))
+            if below_owner is not None and below_owner != net:
+                return False
 
         for dx, dz in ((1, 0), (-1, 0), (0, 1), (0, -1)):
             n = (x + dx, y, z + dz)
@@ -204,6 +210,14 @@ def _reconstruct(came_from: dict[Coord, Coord], src: Coord, dst: Coord) -> list[
     return path
 
 
+_STAIR_COST = 5  # heavily discourage y-changes vs horizontal
+
+
+def _move_cost(delta: tuple[int, int, int]) -> int:
+    """Edge cost: horizontal = 1, vertical stair = _STAIR_COST."""
+    return _STAIR_COST if delta[1] != 0 else 1
+
+
 def find_path_multi(
     grid: VoxelGrid,
     sources: Iterable[Coord],
@@ -212,8 +226,7 @@ def find_path_multi(
     *,
     max_iters: int = 200_000,
 ) -> list[Coord]:
-    """A* from any of `sources` (all at g=0) to `dst`. Returns the path
-    starting at the chosen source and ending at dst."""
+    """A* from any of `sources` (all at g=0) to `dst`. Returns the path."""
     counter = 0
     open_heap: list[tuple[int, int, Coord]] = []
     g_score: dict[Coord, int] = {}
@@ -234,12 +247,23 @@ def find_path_multi(
         if current == dst:
             return _reconstruct_multi(came_from, sources_set, dst)
 
-        for nxt, _delta in _moves(current, current, dst):
+        for nxt, delta in _moves(current, current, dst):
             if nxt != dst and not grid.is_passable(nxt, net):
                 continue
             if not (0 <= nxt[1] <= 32):
                 continue
-            tentative = g_score[current] + 1
+            # Disallow ascending into a coord whose space above is claimed
+            # (would block the staircase line-of-sight for the dust below).
+            if delta[1] > 0:
+                # The current coord becomes the "lower" dust in a stair pair;
+                # the position one above it must remain air for the upward
+                # signal to conduct. Reject the move if anything already owns it.
+                cur_above = (current[0], current[1] + 1, current[2])
+                if grid.dust_owner.get(cur_above) not in (None, net):
+                    continue
+                if cur_above in grid.obstacles:
+                    continue
+            tentative = g_score[current] + _move_cost(delta)
             if tentative >= g_score.get(nxt, 10**9):
                 continue
             g_score[nxt] = tentative
