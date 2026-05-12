@@ -55,8 +55,10 @@ def module_io_positions(
 ) -> dict[str, Coord]:
     """Pick a world position for each module-level port (external levers/lamps).
 
-    Inputs sit to the west (negative-x side) of the leftmost cell, outputs sit
-    to the east of the rightmost cell. They're spread along z to avoid collisions.
+    Each external lever (input) is placed at the same z and y as the FIRST cell
+    port it connects to, so the route is a straight east-west line — no z-bend.
+    Same for output lamps. This avoids the dust-convergence bug where two L-
+    shaped routes share a column and accidentally bridge through adjacent dust.
     """
     if not module.cells:
         return {}
@@ -66,18 +68,41 @@ def module_io_positions(
     east_edge = max_x + max_fx + margin
     west_edge = min_x - margin
 
-    # All port y's align with cell-port y (the routing layer).
-    route_y = max(library[c.cell_spec].footprint[1] - 1
-                  for c in module.cells.values() if c.cell_spec)
-
     pos: dict[str, Coord] = {}
-    for i, port in enumerate(module.ports):
-        z = i * 2 + 1
+    for port in module.ports:
         if port.direction == "input":
-            pos[port.name] = (west_edge, route_y, z)
+            target = _first_load_port_coord(module, library, port.name)
+            if target is None:
+                continue
+            pos[port.name] = (west_edge, target[1], target[2])
         else:
-            pos[port.name] = (east_edge, route_y, z)
+            target = _driver_port_coord(module, library, port.name)
+            if target is None:
+                continue
+            pos[port.name] = (east_edge, target[1], target[2])
     return pos
+
+
+def _first_load_port_coord(module: Module, library: dict[str, CellSpec], net_name: str) -> Coord | None:
+    net = module.nets.get(net_name)
+    if net is None or not net.loads:
+        return None
+    cell_name, port_name = net.loads[0]
+    cell = module.cells.get(cell_name)
+    if cell is None:
+        return None
+    return _cell_port_world(cell, port_name, library, "input")
+
+
+def _driver_port_coord(module: Module, library: dict[str, CellSpec], net_name: str) -> Coord | None:
+    net = module.nets.get(net_name)
+    if net is None or net.driver is None:
+        return None
+    cell_name, port_name = net.driver
+    cell = module.cells.get(cell_name)
+    if cell is None:
+        return None
+    return _cell_port_world(cell, port_name, library, "output")
 
 
 def detect_collisions(module: Module, library: dict[str, CellSpec]) -> dict[Coord, set[str]]:
